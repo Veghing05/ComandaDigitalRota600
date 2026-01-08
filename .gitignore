@@ -1,0 +1,5 @@
+node_modules/
+backend/database.sqlite
+.DS_Storenode_modules/
+backend/database.sqlite
+.DS_Store

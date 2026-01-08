@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rota 600 - Garçom</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body { background: #121212; color: #e0e0e0; }
+        .mesa-card {
+            border-radius: 12px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .mesa-card:active { transform: scale(0.95); }
+        .vazia { background: #1e3a8a; } /* Azul */
+        .consumindo { background: #064e3b; } /* Verde */
+        .fechada { background: #7f1d1d; } /* Vermelho */
+
+        .modal-content { background: #1e1e1e; color: white; border: 1px solid #444; }
+        .list-group-item { background: #2a2a2a; color: white; border-color: #444; }
+        
+        /* Ajuste para telas pequenas */
+        #botoesProdutos button { font-weight: bold; }
+    </style>
+</head>
+
+<body class="p-2">
+
+<h4 class="text-center mb-3 text-info">📲 Rota 600 - Garçom</h4>
+
+<div class="row row-cols-2 g-2" id="gridMesas"></div>
+
+<div class="modal fade" id="modalMesa" tabindex="-1">
+    <div class="modal-dialog modal-fullscreen-sm-down">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 id="tituloMesa">Mesa</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <h6>Itens na Comanda:</h6>
+                <ul id="listaItens" class="list-group mb-3 shadow-sm" style="max-height: 180px; overflow-y: auto;">
+                    </ul>
+
+                <hr>
+
+                <h6>Adicionar Pedido:</h6>
+                <div id="botoesProdutos" class="d-grid gap-2">
+                    </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-danger btn-lg w-100" onclick="solicitarFechamento()">
+                    Finalizar Atendimento (Conta)
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Inicializa a conexão com o servidor atual
+    const socket = io(); 
+    let mesaAtual = null;
+    let prodsCache = [];
+
+    const modalMesa = new bootstrap.Modal(document.getElementById('modalMesa'));
+
+    // --- ESCUTAR ATUALIZAÇÃO DE MESAS ---
+    socket.on('atualizarMesas', (mesas) => {
+        document.getElementById('gridMesas').innerHTML = mesas.map(m => `
+            <div class="col" onclick="abrirMesa(${m.id}, '${m.status}')">
+                <div class="p-3 mesa-card ${m.status} text-center shadow">
+                    <div class="fw-bold text-uppercase">Mesa ${m.id}</div>
+                    <div class="fs-5">R$ ${m.consumo.toFixed(2)}</div>
+                </div>
+            </div>
+        `).join('');
+    });
+
+    // --- ESCUTAR ATUALIZAÇÃO DE PRODUTOS ---
+    socket.on('atualizarProdutos', (produtos) => {
+        prodsCache = produtos;
+    });
+
+    // --- ESCUTAR DETALHES DA COMANDA (O que faltava) ---
+    socket.on('detalhesMesa', (dados) => {
+        if (dados.mesaId === mesaAtual) {
+            const lista = document.getElementById('listaItens');
+            if (dados.itens.length === 0) {
+                lista.innerHTML = `<li class="list-group-item text-muted text-center italic">Comanda vazia</li>`;
+            } else {
+                lista.innerHTML = dados.itens.map(i => `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>${i.produto_nome}</span>
+                        <span class="badge bg-primary rounded-pill">R$ ${i.valor.toFixed(2)}</span>
+                    </li>
+                `).join('');
+            }
+        }
+    });
+
+    function abrirMesa(id, status) {
+        if (status === 'fechada') {
+            alert("⚠️ Esta mesa já solicitou o fechamento no caixa!");
+            return;
+        }
+
+        mesaAtual = id;
+        document.getElementById('tituloMesa').innerText = `Mesa ${id}`;
+
+        // Solicita ao servidor os itens desta mesa
+        socket.emit('getDetalhes', id);
+
+        // Monta os botões de produtos
+        const containerProds = document.getElementById('botoesProdutos');
+        if (prodsCache.length === 0) {
+            containerProds.innerHTML = `<p class="text-center text-warning small">Cadastre produtos no caixa para aparecerem aqui.</p>`;
+        } else {
+            containerProds.innerHTML = prodsCache.map(p => `
+                <button class="btn btn-outline-info text-start p-3"
+                    onclick="lancar('${p.nome}', ${p.preco})">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>${p.nome}</span>
+                        <span>R$ ${p.preco.toFixed(2)}</span>
+                    </div>
+                </button>
+            `).join('');
+        }
+
+        modalMesa.show();
+    }
+
+    function lancar(nome, preco) {
+        socket.emit('lancarItem', {
+            mesaId: mesaAtual,
+            nome,
+            preco
+        });
+    }
+
+    function solicitarFechamento() {
+        if (!mesaAtual) return;
+
+        if (confirm(`Deseja solicitar a conta da Mesa ${mesaAtual}?`)) {
+            socket.emit('alterarStatus', {
+                id: mesaAtual,
+                status: 'fechada'
+            });
+            modalMesa.hide();
+        }
+    }
+</script>
+
+</body>
+</html>
