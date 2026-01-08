@@ -1,170 +1,89 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Rota 600 - Garçom</title>
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <style>
-        body { background: #121212; color: #e0e0e0; }
-        .mesa-card {
-            border-radius: 12px;
-            min-height: 100px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-        .mesa-card:active { transform: scale(0.95); }
-        .vazia { background: #1e3a8a; } /* Azul */
-        .consumindo { background: #064e3b; } /* Verde */
-        .fechada { background: #7f1d1d; } /* Vermelho */
-
-        .modal-content { background: #1e1e1e; color: white; border: 1px solid #444; }
-        .list-group-item { background: #2a2a2a; color: white; border-color: #444; }
-        
-        /* Ajuste para telas pequenas */
-        #botoesProdutos button { font-weight: bold; }
+        :root { --bg: #121212; --card: #1e1e1e; --blue: #007bff; }
+        body { background: var(--bg); color: #fff; }
+        .mesa-btn { border-radius: 12px; border: none; min-height: 80px; font-weight: bold; color: white; }
+        .vazia { background: #1e3a8a; } .consumindo { background: #064e3b; } .fechamento { background: #d97706; }
+        .nav-categorias { background: #222; overflow-x: auto; white-space: nowrap; padding: 10px; sticky: top; }
+        .cat-btn { padding: 8px 18px; margin-right: 5px; border-radius: 20px; background: #333; color: #ccc; border: none; }
+        .cat-btn.active { background: var(--blue); }
+        .produto-card { background: var(--card); border: 1px solid #333; border-radius: 10px; padding: 12px; }
+        .footer-pedido { position: fixed; bottom: 0; left: 0; right: 0; background: #222; padding: 12px; border-top: 2px solid #444; }
+        .view-hidden { display: none !important; }
     </style>
 </head>
+<body>
+    <div id="viewMesas" class="container-fluid p-3">
+        <h4 class="text-info mb-3">📍 Mesas - Rota 600</h4>
+        <div class="row row-cols-3 g-2" id="gridMesas"></div>
+    </div>
 
-<body class="p-2">
-
-<h4 class="text-center mb-3 text-info">📲 Rota 600 - Garçom</h4>
-
-<div class="row row-cols-2 g-2" id="gridMesas"></div>
-
-<div class="modal fade" id="modalMesa" tabindex="-1">
-    <div class="modal-dialog modal-fullscreen-sm-down">
-        <div class="modal-content">
-
-            <div class="modal-header">
-                <h5 id="tituloMesa">Mesa</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-
-            <div class="modal-body">
-                <h6>Itens na Comanda:</h6>
-                <ul id="listaItens" class="list-group mb-3 shadow-sm" style="max-height: 180px; overflow-y: auto;">
-                    </ul>
-
-                <hr>
-
-                <h6>Adicionar Pedido:</h6>
-                <div id="botoesProdutos" class="d-grid gap-2">
-                    </div>
-            </div>
-
-            <div class="modal-footer">
-                <button class="btn btn-danger btn-lg w-100" onclick="solicitarFechamento()">
-                    Finalizar Atendimento (Conta)
-                </button>
-            </div>
-
+    <div id="viewLancar" class="view-hidden">
+        <div class="p-3 bg-dark d-flex justify-content-between align-items-center border-bottom border-secondary">
+            <button class="btn btn-sm btn-outline-light" onclick="voltar()">⬅ Voltar</button>
+            <h5 class="m-0" id="tituloMesa">Mesa --</h5>
+            <button class="btn btn-sm btn-info" onclick="verComanda()">📋 CONTA</button>
+        </div>
+        <div class="nav-categorias" id="cats">
+            <button class="cat-btn active" onclick="filtrar('Todos', this)">Todos</button>
+            <button class="cat-btn" onclick="filtrar('Cervejas', this)">Cervejas</button>
+            <button class="cat-btn" onclick="filtrar('Bebidas', this)">Bebidas</button>
+            <button class="cat-btn" onclick="filtrar('Porções', this)">Porções</button>
+        </div>
+        <div class="p-3">
+            <input type="text" id="busca" class="form-control bg-dark text-white mb-3" placeholder="🔍 Buscar..." oninput="renderProdutos()">
+            <div id="gridProdutos" class="row row-cols-2 g-2"></div>
+        </div>
+        <div id="footerPedido" class="footer-pedido view-hidden">
+            <div class="d-flex justify-content-between text-white mb-2"><span id="resumo">0 itens</span><span id="total" class="text-success fw-bold">R$ 0,00</span></div>
+            <button class="btn btn-success w-100 fw-bold" onclick="enviar()">🚀 ENVIAR PEDIDO</button>
         </div>
     </div>
-</div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <div class="modal fade" id="modalComanda"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary">
+        <div class="modal-header"><h5>Itens da Mesa</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <ul id="listaItensGarcom" class="list-group list-group-flush mb-3"></ul>
+            <div class="p-2 bg-black rounded d-flex justify-content-between mb-3"><span>Total:</span><h4 id="totalMesaGarcom" class="text-success m-0">R$ 0,00</h4></div>
+            <button class="btn btn-warning w-100 fw-bold" onclick="pedirConta()">🔔 SOLICITAR FECHAMENTO</button>
+        </div>
+    </div></div></div>
 
-<script>
-    // Inicializa a conexão com o servidor atual
-    const socket = io(); 
-    let mesaAtual = null;
-    let prodsCache = [];
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const socket = io();
+        let prods = [], carrinho = [], cat = 'Todos', mesaAtiva = null;
+        const modal = new bootstrap.Modal(document.getElementById('modalComanda'));
 
-    const modalMesa = new bootstrap.Modal(document.getElementById('modalMesa'));
-
-    // --- ESCUTAR ATUALIZAÇÃO DE MESAS ---
-    socket.on('atualizarMesas', (mesas) => {
-        document.getElementById('gridMesas').innerHTML = mesas.map(m => `
-            <div class="col" onclick="abrirMesa(${m.id}, '${m.status}')">
-                <div class="p-3 mesa-card ${m.status} text-center shadow">
-                    <div class="fw-bold text-uppercase">Mesa ${m.id}</div>
-                    <div class="fs-5">R$ ${m.consumo.toFixed(2)}</div>
-                </div>
-            </div>
-        `).join('');
-    });
-
-    // --- ESCUTAR ATUALIZAÇÃO DE PRODUTOS ---
-    socket.on('atualizarProdutos', (produtos) => {
-        prodsCache = produtos;
-    });
-
-    // --- ESCUTAR DETALHES DA COMANDA (O que faltava) ---
-    socket.on('detalhesMesa', (dados) => {
-        if (dados.mesaId === mesaAtual) {
-            const lista = document.getElementById('listaItens');
-            if (dados.itens.length === 0) {
-                lista.innerHTML = `<li class="list-group-item text-muted text-center italic">Comanda vazia</li>`;
-            } else {
-                lista.innerHTML = dados.itens.map(i => `
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>${i.produto_nome}</span>
-                        <span class="badge bg-primary rounded-pill">R$ ${i.valor.toFixed(2)}</span>
-                    </li>
-                `).join('');
-            }
-        }
-    });
-
-    function abrirMesa(id, status) {
-        if (status === 'fechada') {
-            alert("⚠️ Esta mesa já solicitou o fechamento no caixa!");
-            return;
-        }
-
-        mesaAtual = id;
-        document.getElementById('tituloMesa').innerText = `Mesa ${id}`;
-
-        // Solicita ao servidor os itens desta mesa
-        socket.emit('getDetalhes', id);
-
-        // Monta os botões de produtos
-        const containerProds = document.getElementById('botoesProdutos');
-        if (prodsCache.length === 0) {
-            containerProds.innerHTML = `<p class="text-center text-warning small">Cadastre produtos no caixa para aparecerem aqui.</p>`;
-        } else {
-            containerProds.innerHTML = prodsCache.map(p => `
-                <button class="btn btn-outline-info text-start p-3"
-                    onclick="lancar('${p.nome}', ${p.preco})">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span>${p.nome}</span>
-                        <span>R$ ${p.preco.toFixed(2)}</span>
-                    </div>
-                </button>
-            `).join('');
-        }
-
-        modalMesa.show();
-    }
-
-    function lancar(nome, preco) {
-        socket.emit('lancarItem', {
-            mesaId: mesaAtual,
-            nome,
-            preco
+        socket.on('atualizarMesas', ms => {
+            document.getElementById('gridMesas').innerHTML = ms.map(m => `<div class="col"><button class="w-100 mesa-btn ${m.status}" onclick="escolherMesa(${m.id})">${m.id}<br><small>R$ ${m.consumo.toFixed(2)}</small></button></div>`).join('');
         });
-    }
+        socket.on('atualizarProdutos', p => { prods = p; renderProdutos(); });
+        socket.on('itensMesa', data => {
+            if(data.mesaId != mesaAtiva) return;
+            document.getElementById('listaItensGarcom').innerHTML = data.itens.map(i => `<li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between"><span>${i.qtd}x ${i.produto_nome}</span><span>R$ ${i.valor.toFixed(2)}</span></li>`).join('');
+            document.getElementById('totalMesaGarcom').innerText = "R$ " + data.itens.reduce((a,b)=>a+b.valor,0).toFixed(2);
+        });
 
-    function solicitarFechamento() {
-        if (!mesaAtual) return;
-
-        if (confirm(`Deseja solicitar a conta da Mesa ${mesaAtual}?`)) {
-            socket.emit('alterarStatus', {
-                id: mesaAtual,
-                status: 'fechada'
-            });
-            modalMesa.hide();
+        function escolherMesa(id) { mesaAtiva = id; document.getElementById('tituloMesa').innerText = "Mesa "+id; document.getElementById('viewMesas').classList.add('view-hidden'); document.getElementById('viewLancar').classList.remove('view-hidden'); }
+        function voltar() { carrinho = []; atualizarRodape(); document.getElementById('viewMesas').classList.remove('view-hidden'); document.getElementById('viewLancar').classList.add('view-hidden'); }
+        function renderProdutos() {
+            const b = document.getElementById('busca').value.toLowerCase();
+            const f = prods.filter(p => (cat === 'Todos' || p.categoria === cat) && p.nome.toLowerCase().includes(b));
+            document.getElementById('gridProdutos').innerHTML = f.map(p => `<div class="col" onclick="add('${p.nome}',${p.preco})"><div class="produto-card"><small>${p.nome}</small><br><b class="text-success">R$ ${p.preco.toFixed(2)}</b></div></div>`).join('');
         }
-    }
-</script>
-
+        function add(n,p) { const q = prompt("Qtd:", "1"); if(q > 0) { carrinho.push({nome:n, preco:p, qtd:parseInt(q)}); atualizarRodape(); } }
+        function atualizarRodape() { const f = document.getElementById('footerPedido'); if(carrinho.length > 0) { f.classList.remove('view-hidden'); document.getElementById('total').innerText = "R$ " + carrinho.reduce((a,b)=>a+(b.preco*b.qtd),0).toFixed(2); } else f.classList.add('view-hidden'); }
+        function enviar() { carrinho.forEach(i => socket.emit('lancarItem', {mesaId: mesaAtiva, ...i})); alert("Enviado!"); voltar(); }
+        function verComanda() { socket.emit('solicitarItensMesa', mesaAtiva); modal.show(); }
+        function pedirConta() { if(confirm("Pedir a conta?")) { socket.emit('pedirFechamento', mesaAtiva); modal.hide(); voltar(); } }
+        function filtrar(c, b) { cat = c; document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active')); b.classList.add('active'); renderProdutos(); }
+    </script>
 </body>
 </html>

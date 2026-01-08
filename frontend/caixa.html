@@ -1,147 +1,175 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <title>Rota 600 - Admin/Caixa</title>
+    <meta charset="UTF-8"><title>Rota 600 - Caixa</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background: #121212; color: #e0e0e0; }
-        .mesa-card { border-radius: 12px; cursor: pointer; min-height: 120px; transition: 0.2s; border: none; }
-        .vazia { background: #1e3a8a; } /* Azul */
-        .consumindo { background: #064e3b; } /* Verde */
-        .fechada { background: #7f1d1d; } /* Vermelho */
-        .modal-content { background: #1e1e1e; color: white; border: 1px solid #333; }
-        .list-group-item { background: #2a2a2a; color: white; border-color: #444; }
+        :root { --bg: #121212; --card: #1e1e1e; --blue: #007bff; --green: #28a745; --orange: #d97706; }
+        body { background: var(--bg); color: #e0e0e0; font-family: sans-serif; }
+        .mesa-card { border-radius: 12px; cursor: pointer; min-height: 100px; border: none; transition: 0.2s; }
+        .vazia { background: #1e3a8a }
+        .consumindo { background: #064e3b }
+        .fechamento { background: var(--orange); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .modal-content { background: var(--card); color: white; border: 1px solid #333; }
+        .scroll-comanda { max-height: 400px; overflow-y: auto; background: #111; padding: 10px; border-radius: 8px; }
+        .cat-btn { padding: 6px 15px; margin-right: 5px; border-radius: 20px; background: #333; color: #ccc; border: none; font-size: 0.8rem; }
+        .cat-btn.active { background: var(--blue); color: #fff; }
+        .prod-item { background: #2a2a2a; border: 1px solid #444; border-radius: 8px; padding: 10px; cursor: pointer; text-align: center; height: 100%; }
     </style>
 </head>
 <body class="p-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>🍻 Rota 600 - Dashboard</h2>
-        <button class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#modalEstoque">📦 Gerenciar Produtos</button>
+    <div class="d-flex justify-content-between align-items-center mb-4 p-3 bg-dark shadow rounded border-start border-success border-5">
+        <div><h3 class="text-info m-0">🍻 Rota 600 - Caixa</h3><button class="btn btn-sm btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#modalProd">📦 Gestão de Estoque</button></div>
+        <div class="text-end text-secondary">Faturamento Hoje<h2 id="faturamentoValor" class="text-success m-0">R$ 0,00</h2></div>
     </div>
 
     <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3" id="gridMesas"></div>
 
-    <div class="modal fade" id="modalMesa" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header"><h5 id="tituloMesa">Mesa</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body row">
-                    <div class="col-md-6 border-end">
-                        <h6>Comanda Atual</h6>
-                        <ul id="listaItens" class="list-group mb-3"></ul>
-                        <h4 id="totalMesa" class="text-success">Total: R$ 0,00</h4>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Lançar Produto</h6>
-                        <div id="botoesProdutos" class="d-grid gap-2"></div>
-                    </div>
+    <div class="modal fade" id="modalMesa"><div class="modal-dialog modal-xl"><div class="modal-content">
+        <div class="modal-header border-secondary"><h5 id="tituloMesa"></h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body row">
+            <div class="col-md-5 border-end border-secondary">
+                <h6 class="text-info small text-uppercase">Itens na Mesa</h6>
+                <div class="scroll-comanda mb-3"><ul id="listaItens" class="list-group list-group-flush bg-transparent"></ul></div>
+                <div class="p-3 bg-dark rounded d-flex justify-content-between align-items-center">
+                    <span>Total:</span><span id="totalMesa" class="fs-3 text-success fw-bold">R$ 0,00</span>
                 </div>
-                <div class="modal-footer d-flex justify-content-between">
-                    <button class="btn btn-danger" id="btnFechar">Solicitar Pagamento (Vermelho)</button>
-                    <button class="btn btn-warning" id="btnLiberar">Finalizar e Liberar (Azul)</button>
+                <button class="btn btn-success w-100 mt-3 py-3 fw-bold" onclick="fecharConta()">💰 FINALIZAR CONTA</button>
+            </div>
+            <div class="col-md-7">
+                <input type="text" id="buscaCaixa" class="form-control bg-dark text-white mb-2" placeholder="Buscar produto...">
+                <div class="mb-3" id="cats">
+                    <button class="cat-btn active" onclick="filtrarCaixa('Todos', this)">Todos</button>
+                    <button class="cat-btn" onclick="filtrarCaixa('Cervejas', this)">Cervejas</button>
+                    <button class="cat-btn" onclick="filtrarCaixa('Bebidas', this)">Bebidas</button>
+                    <button class="cat-btn" onclick="filtrarCaixa('Marmitex PF', this)">Marmitex</button>
+                    <button class="cat-btn" onclick="filtrarCaixa('Porções', this)">Porções</button>
                 </div>
+                <div id="gridProdutosLancar" class="row row-cols-3 g-2"></div>
             </div>
         </div>
-    </div>
+    </div></div></div>
 
-    <div class="modal fade" id="modalEstoque" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header"><h5>Cadastro de Produtos</h5></div>
-                <div class="modal-body">
-                    <form id="formProd" class="row g-2 mb-3">
-                        <div class="col-7"><input id="n" class="form-control" placeholder="Nome" required></div>
-                        <div class="col-3"><input id="p" type="number" step="0.01" class="form-control" placeholder="R$" required></div>
-                        <div class="col-2"><button class="btn btn-primary w-100">+</button></div>
-                    </form>
-                    <ul id="listaEstoque" class="list-group"></ul>
+    <div class="modal fade" id="modalProd"><div class="modal-dialog modal-xl"><div class="modal-content">
+        <div class="modal-header"><h5>Gestão de Produtos e Estoque</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+            <form id="formProd" class="row g-2 mb-4 bg-dark p-3 rounded">
+                <input type="hidden" id="prodId">
+                <div class="col-md-4"><input id="n" class="form-control" placeholder="Nome do Produto" required></div>
+                <div class="col-md-2"><input id="p" type="number" step="0.01" class="form-control" placeholder="Preço" required></div>
+                <div class="col-md-2"><input id="e" type="number" class="form-control" placeholder="Estoque Inicial"></div>
+                <div class="col-md-3">
+                    <select id="cat" class="form-select">
+                        <option>Marmitex PF</option><option>Cervejas</option><option>Bebidas</option><option>Latas</option><option>Porções</option>
+                    </select>
                 </div>
+                <div class="col-md-1"><button class="btn btn-primary w-100">Salvar</button></div>
+            </form>
+            <div class="table-responsive" style="max-height: 400px;">
+                <table class="table table-dark table-hover table-sm">
+                    <thead><tr><th>Nome</th><th>Preço</th><th>Estoque</th><th>Categoria</th><th>Ações</th></tr></thead>
+                    <tbody id="tabelaEstoque"></tbody>
+                </table>
             </div>
         </div>
-    </div>
+    </div></div></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    
     <script>
-        // Inicialização única do Socket
-        const socket = io(); 
-        let mesaAtual = null;
-        let prodsCache = [];
+        const socket = io();
+        let mesaIdAtual = null, valorMesaTotal = 0, prodsCache = [], catFiltro = 'Todos';
         const modalMesa = new bootstrap.Modal(document.getElementById('modalMesa'));
 
-        // Escutar atualização das mesas
-        socket.on('atualizarMesas', (mesas) => {
-            const grid = document.getElementById('gridMesas');
-            grid.innerHTML = mesas.map(m => `
-                <div class="col" onclick="abrirMesa(${m.id}, '${m.status}', ${m.consumo})">
-                    <div class="p-3 mesa-card ${m.status} text-center shadow">
-                        <div class="fw-bold">Mesa ${m.id}</div>
-                        <div class="fs-5">R$ ${m.consumo.toFixed(2)}</div>
-                    </div>
-                </div>
-            `).join('');
-        });
-
-        // Escutar atualização dos produtos
-        socket.on('atualizarProdutos', (prods) => {
-            prodsCache = prods;
-            document.getElementById('listaEstoque').innerHTML = prods.map(p => `
-                <li class="list-group-item d-flex justify-content-between">
-                    ${p.nome} <span>R$ ${p.preco.toFixed(2)}</span>
-                </li>`).join('');
-        });
-
-        function abrirMesa(id, status, consumo) {
-            mesaAtual = id;
-            document.getElementById('tituloMesa').innerText = "Mesa " + id;
-            document.getElementById('totalMesa').innerText = "Total: R$ " + consumo.toFixed(2);
-            socket.emit('getDetalhes', id);
-            
-            document.getElementById('botoesProdutos').innerHTML = prodsCache.map(p => `
-                <button class="btn btn-outline-info text-start" onclick="lancar('${p.nome}', ${p.preco})">${p.nome}</button>
-            `).join('');
-            
-            modalMesa.show();
-        }
-
-        // Atualizar lista da comanda dentro do modal
-        socket.on('detalhesMesa', (d) => {
-            if(d.mesaId == mesaAtual) {
-                document.getElementById('listaItens').innerHTML = d.itens.map(i => `
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>${i.produto_nome}</span>
-                        <span>R$ ${i.valor.toFixed(2)}</span>
-                    </li>`).join('');
-            }
-        });
-
-        function lancar(nome, preco) { 
-            socket.emit('lancarItem', { mesaId: mesaAtual, nome, preco }); 
-        }
+        socket.on('faturamentoDia', v => document.getElementById('faturamentoValor').innerText = `R$ ${v.toFixed(2)}`);
         
-        // Botão Vermelho (Fechar Conta)
-        document.getElementById('btnFechar').onclick = () => {
-            socket.emit('alterarStatus', { id: mesaAtual, status: 'fechada' });
-        };
+        socket.on('atualizarMesas', mesas => {
+            document.getElementById('gridMesas').innerHTML = mesas.map(m => `
+                <div class="col" onclick="abrirMesa(${m.id})">
+                    <div class="p-3 mesa-card ${m.status} text-center shadow">
+                        <small>MESA</small><br><span class="fs-4 fw-bold">${m.id}</span><br>
+                        <small>R$ ${m.consumo.toFixed(2)}</small>
+                    </div>
+                </div>`).join('');
+        });
 
-        // Botão Amarelo (Zerar e Liberar)
-        document.getElementById('btnLiberar').onclick = () => { 
-            if(confirm("Zerar conta e liberar mesa?")) {
-                socket.emit('alterarStatus', { id: mesaAtual, status: 'vazia' }); 
+        socket.on('atualizarProdutos', prods => { 
+            prodsCache = prods; 
+            renderGrade(); 
+            // Atualiza a tabela de estoque
+            document.getElementById('tabelaEstoque').innerHTML = prods.map(p => `
+                <tr>
+                    <td>${p.nome}</td><td>R$ ${p.preco.toFixed(2)}</td><td>${p.estoque}</td><td>${p.categoria}</td>
+                    <td><button class="btn btn-sm btn-warning" onclick='editarProd(${JSON.stringify(p)})'>✏️</button></td>
+                </tr>`).join('');
+        });
+
+        socket.on('itensMesa', data => {
+            if(data.mesaId != mesaIdAtual) return;
+            document.getElementById('listaItens').innerHTML = data.itens.map(i => `
+                <li class="list-group-item d-flex justify-content-between bg-transparent text-white border-secondary">
+                    <div><b>${i.qtd}x</b> ${i.produto_nome}</div>
+                    <div>R$ ${i.valor.toFixed(2)} <button class="btn btn-sm text-danger" onclick="removerItem(${i.id})">✖</button></div>
+                </li>`).join('');
+            valorMesaTotal = data.itens.reduce((a,b)=>a+b.valor, 0);
+            document.getElementById('totalMesa').innerText = `R$ ${valorMesaTotal.toFixed(2)}`;
+        });
+
+        function abrirMesa(id) { mesaIdAtual = id; socket.emit('solicitarItensMesa', id); document.getElementById('tituloMesa').innerText = "ATENDIMENTO MESA " + id; modalMesa.show(); }
+        
+        function renderGrade() {
+            const busca = document.getElementById('buscaCaixa').value.toLowerCase();
+            const filtrados = prodsCache.filter(p => (catFiltro === 'Todos' || p.categoria === catFiltro) && p.nome.toLowerCase().includes(busca));
+            document.getElementById('gridProdutosLancar').innerHTML = filtrados.map(p => `
+                <div class="col">
+                    <div class="prod-item" onclick="lancar('${p.nome}',${p.preco})">
+                        <small>${p.nome}</small><br><b class="text-success">R$ ${p.preco.toFixed(2)}</b>
+                    </div>
+                </div>`).join('');
+        }
+
+        function lancar(nome, preco) { const qtd = prompt(`Quantidade de ${nome}:`, "1"); if(qtd > 0) socket.emit('lancarItem', { mesaId: mesaIdAtual, nome, preco, qtd: parseInt(qtd), obs: "Caixa" }); }
+        
+        function fecharConta() { 
+            if(valorMesaTotal === 0) return alert("Mesa sem consumo!");
+            const m = prompt("Pagamento: 1-Dinheiro, 2-Cartão, 3-Pix"); 
+            if(m) { 
+                const d = m=="2"?"Cartão":m=="3"?"Pix":"Dinheiro"; 
+                socket.emit('finalizarConta', { mesaId: mesaIdAtual, total: valorMesaTotal, metodo: d }); 
                 modalMesa.hide(); 
-            }
-        };
+            } 
+        }
 
-        // Cadastro de novos produtos
+        function removerItem(id) { if(confirm("Remover este item?")) socket.emit('removerItemComanda', { id, mesaId: mesaIdAtual }); }
+        
+        function filtrarCaixa(c, b) { catFiltro = c; document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active')); b.classList.add('active'); renderGrade(); }
+        
+        // FUNÇÕES DO ESTOQUE
+        function editarProd(p) {
+            document.getElementById('prodId').value = p.id;
+            document.getElementById('n').value = p.nome;
+            document.getElementById('p').value = p.preco;
+            document.getElementById('e').value = p.estoque;
+            document.getElementById('cat').value = p.categoria;
+            document.getElementById('formProd').querySelector('button').innerText = "Atualizar";
+        }
+
         document.getElementById('formProd').onsubmit = (e) => {
             e.preventDefault();
-            const nome = document.getElementById('n').value;
-            const preco = parseFloat(document.getElementById('p').value);
-            socket.emit('criarProduto', { nome, preco, estoque: 999 });
+            socket.emit('salvarProduto', {
+                id: document.getElementById('prodId').value || null,
+                nome: document.getElementById('n').value,
+                preco: parseFloat(document.getElementById('p').value),
+                estoque: parseInt(document.getElementById('e').value) || 0,
+                categoria: document.getElementById('cat').value
+            });
             e.target.reset();
+            document.getElementById('prodId').value = "";
+            document.getElementById('formProd').querySelector('button').innerText = "Salvar";
         };
+
+        document.getElementById('buscaCaixa').oninput = renderGrade;
     </script>
 </body>
 </html>
