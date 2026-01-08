@@ -7,7 +7,9 @@
     <style>
         body { background: #121212; color: #e0e0e0; }
         .mesa-card { border-radius: 12px; cursor: pointer; min-height: 120px; transition: 0.2s; border: none; }
-        .vazia { background: #1e3a8a; } .consumindo { background: #064e3b; } .fechada { background: #7f1d1d; }
+        .vazia { background: #1e3a8a; } /* Azul */
+        .consumindo { background: #064e3b; } /* Verde */
+        .fechada { background: #7f1d1d; } /* Vermelho */
         .modal-content { background: #1e1e1e; color: white; border: 1px solid #333; }
         .list-group-item { background: #2a2a2a; color: white; border-color: #444; }
     </style>
@@ -59,15 +61,17 @@
         </div>
     </div>
 
-    <script src="http://192.168.0.149:3000/socket.io/socket.io.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
     <script>
-        // Remova o IP e deixe assim:
-        const socket = io();
+        // Inicialização única do Socket
+        const socket = io(); 
         let mesaAtual = null;
         let prodsCache = [];
         const modalMesa = new bootstrap.Modal(document.getElementById('modalMesa'));
 
+        // Escutar atualização das mesas
         socket.on('atualizarMesas', (mesas) => {
             const grid = document.getElementById('gridMesas');
             grid.innerHTML = mesas.map(m => `
@@ -80,9 +84,13 @@
             `).join('');
         });
 
+        // Escutar atualização dos produtos
         socket.on('atualizarProdutos', (prods) => {
             prodsCache = prods;
-            document.getElementById('listaEstoque').innerHTML = prods.map(p => `<li class="list-group-item">${p.nome} - R$ ${p.preco.toFixed(2)}</li>`).join('');
+            document.getElementById('listaEstoque').innerHTML = prods.map(p => `
+                <li class="list-group-item d-flex justify-content-between">
+                    ${p.nome} <span>R$ ${p.preco.toFixed(2)}</span>
+                </li>`).join('');
         });
 
         function abrirMesa(id, status, consumo) {
@@ -98,20 +106,40 @@
             modalMesa.show();
         }
 
+        // Atualizar lista da comanda dentro do modal
         socket.on('detalhesMesa', (d) => {
             if(d.mesaId == mesaAtual) {
-                document.getElementById('listaItens').innerHTML = d.itens.map(i => `<li class="list-group-item d-flex justify-content-between"><span>${i.produto_nome}</span><span>R$ ${i.valor.toFixed(2)}</span></li>`).join('');
+                document.getElementById('listaItens').innerHTML = d.itens.map(i => `
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>${i.produto_nome}</span>
+                        <span>R$ ${i.valor.toFixed(2)}</span>
+                    </li>`).join('');
             }
         });
 
-        function lancar(nome, preco) { socket.emit('lancarItem', { mesaId: mesaAtual, nome, preco }); }
+        function lancar(nome, preco) { 
+            socket.emit('lancarItem', { mesaId: mesaAtual, nome, preco }); 
+        }
         
-        document.getElementById('btnFechar').onclick = () => socket.emit('alterarStatus', { id: mesaAtual, status: 'fechada' });
-        document.getElementById('btnLiberar').onclick = () => { if(confirm("Zerar conta e liberar mesa?")) socket.emit('alterarStatus', { id: mesaAtual, status: 'vazia' }); modalMesa.hide(); };
+        // Botão Vermelho (Fechar Conta)
+        document.getElementById('btnFechar').onclick = () => {
+            socket.emit('alterarStatus', { id: mesaAtual, status: 'fechada' });
+        };
 
+        // Botão Amarelo (Zerar e Liberar)
+        document.getElementById('btnLiberar').onclick = () => { 
+            if(confirm("Zerar conta e liberar mesa?")) {
+                socket.emit('alterarStatus', { id: mesaAtual, status: 'vazia' }); 
+                modalMesa.hide(); 
+            }
+        };
+
+        // Cadastro de novos produtos
         document.getElementById('formProd').onsubmit = (e) => {
             e.preventDefault();
-            socket.emit('criarProduto', { nome: document.getElementById('n').value, preco: parseFloat(document.getElementById('p').value), estoque: 999 });
+            const nome = document.getElementById('n').value;
+            const preco = parseFloat(document.getElementById('p').value);
+            socket.emit('criarProduto', { nome, preco, estoque: 999 });
             e.target.reset();
         };
     </script>

@@ -95,6 +95,6 @@ const PORTA = 3000;
 server.listen(PORTA, '0.0.0.0', () => {
     console.log('-------------------------------------------');
     console.log('       SISTEMA ROTA 600 - ONLINE           ');
-    console.log(` ACESSO: http://192.168.0.149:${PORTA}      `);
+    console.log(` ACESSO: http://192.168.0.147:${PORTA}      `);
     console.log('-------------------------------------------');
 });
